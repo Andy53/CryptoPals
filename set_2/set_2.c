@@ -1,6 +1,9 @@
 #include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 
 #include "../PKCS7.h"
+#include "../crypto_helpers.h"
 
 int challenge_9() {
     unsigned char message[] = "YELLOW SUBMARINE";
@@ -13,10 +16,65 @@ int challenge_9() {
     }
     printf("\n");
 
-    return 0;
+    return 1;
+}
+
+int challenge_10() {
+    FILE *fp                   = fopen("challenge_10_inputs.txt", "r");
+    unsigned char key[]        = "YELLOW SUBMARINE";
+    unsigned char iv[16]       = {0};
+    unsigned char *cipher_text = NULL;
+    size_t cipher_text_len     = 0;
+    size_t cipher_bytes_len    = 0;
+    size_t plain_bytes_len     = 0;
+
+    if(fp != NULL) {
+        if(fseek(fp, 0L, SEEK_END) == 0) {
+            long bufsize = ftell(fp);
+            if(bufsize == -1)
+                return 2;
+
+            cipher_text = malloc(sizeof(char) * (bufsize + 1));
+
+            if(fseek(fp, 0L, SEEK_SET) != 0)
+                return 3;
+
+            cipher_text_len = fread(cipher_text, sizeof(char), bufsize, fp);
+            if( ferror( fp ) != 0 ) {
+                fputs("Error reading file", stderr);
+            } else {
+                cipher_text[cipher_text_len++] = '\0'; 
+            }
+        }
+        fclose(fp);
+    }
+    else 
+        return 4;
+
+    b64_decode(cipher_text, NULL, &cipher_bytes_len);
+    unsigned char cipher_bytes[cipher_bytes_len];
+    b64_decode(cipher_text, cipher_bytes, &cipher_bytes_len);
+
+    cbc_decrypt(cipher_bytes, key, iv, NULL, cipher_bytes_len, &plain_bytes_len);
+    unsigned char plain_bytes[plain_bytes_len];
+    cbc_decrypt(cipher_bytes, key, iv, plain_bytes, cipher_bytes_len, &plain_bytes_len);
+
+    printf("Challenge 10: \n");
+    for(size_t i = 0; i < plain_bytes_len; i++) {
+        printf("%c", plain_bytes[i]);
+    }
+    printf("\n");
+    return 1;
+}
+
+int challenge_11() {
+
+    return 1;
 }
 
 int main() {
-    challenge_9();
-    return 0;
+    //challenge_9();
+    challenge_10();
+    challenge_11();
+    return 1;
 }

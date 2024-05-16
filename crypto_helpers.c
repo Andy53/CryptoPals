@@ -3,6 +3,12 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
+#include <openssl/conf.h>
+#include <openssl/evp.h>
+#include <openssl/err.h>
+
+#include "PKCS7.h"
+
 const char b64chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 int b64invs[] = { 62, -1, -1, -1, 63, 52, 53, 54, 55, 56, 57, 58,
@@ -51,7 +57,7 @@ int hex_to_bytes(char *hex, char *bytes, size_t *bytes_len) {
 }
 
 unsigned char *b64_encode(unsigned char *bytes, size_t bytes_len) {
-	unsigned char   *out;
+	unsigned char *out;
 	size_t  elen;
 	size_t  i;
 	size_t  j;
@@ -177,7 +183,7 @@ int xor(unsigned char *bytes_1, unsigned char *bytes_2, unsigned char *bytes_3, 
 	return 0;
 }
 
-int edit_distance(unsigned char *bytes_1, unsigned char *bytes_2, size_t bytes_1_len, size_t *edit_dist){
+int edit_distance(unsigned char *bytes_1, unsigned char *bytes_2, size_t bytes_1_len, size_t *edit_dist) {
 	for(size_t i = 0; i < bytes_1_len; i++){
 		char val = bytes_1[i] ^ bytes_2[i];
 		while(val) {
@@ -187,4 +193,125 @@ int edit_distance(unsigned char *bytes_1, unsigned char *bytes_2, size_t bytes_1
 	}
 	
 	return 0;
+}
+
+int ecb_encrypt(unsigned char *plain_bytes, unsigned char *key, unsigned char *cipher_bytes, size_t plain_bytes_len, size_t *cipher_bytes_len) {
+	EVP_CIPHER_CTX *ctx;
+    int len = 0;
+	unsigned char *padded_message = NULL;
+
+	size_t padded_length = plain_bytes_len % 16 > 0 ? plain_bytes_len + (16 - (plain_bytes_len % 16)) : plain_bytes_len;
+
+	PKCS7_Padding *padded   = addPadding(plain_bytes, plain_bytes_len, padded_length);
+	padded_message    = padded->dataWithPadding;
+	plain_bytes_len = padded->dataLengthWithPadding;
+
+    if(!(ctx = EVP_CIPHER_CTX_new()))
+        return 1;
+
+	EVP_CIPHER_CTX_set_padding(ctx, 0);
+
+    if(1 != EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), NULL, key, NULL))
+        return 2;
+
+    if(1 != EVP_EncryptUpdate(ctx, cipher_bytes, &len, padded_message, plain_bytes_len))
+        return 3;
+    *cipher_bytes_len = len;
+
+    if(1 != EVP_EncryptFinal_ex(ctx, cipher_bytes + *cipher_bytes_len, &len))
+        return 4;
+
+    EVP_CIPHER_CTX_free(ctx);
+	return 0;
+}
+
+int ecb_decrypt(unsigned char *cipher_bytes, unsigned char *key, unsigned char *plain_bytes, size_t cipher_bytes_len, size_t *plain_bytes_len) {
+	EVP_CIPHER_CTX *ctx;
+    int len = 0;
+
+    if(!(ctx = EVP_CIPHER_CTX_new()))
+        return 1;
+
+	EVP_CIPHER_CTX_set_padding(ctx, 0);
+
+    if(1 != EVP_DecryptInit_ex(ctx, EVP_aes_128_ecb(), NULL, key, NULL))
+        return 2;
+
+    if(1 != EVP_DecryptUpdate(ctx, plain_bytes, &len, cipher_bytes, cipher_bytes_len))
+        return 3;
+    *plain_bytes_len = len;
+
+    if(1 != EVP_DecryptFinal_ex(ctx, plain_bytes + *plain_bytes_len, &len))
+        return 4;
+
+    EVP_CIPHER_CTX_free(ctx);
+	return 0;
+}
+
+int cbc_encrypt(unsigned char *plain_bytes, unsigned char *key, unsigned char *iv, unsigned char *cipher_bytes, 
+				size_t plain_bytes_len, size_t *cipher_bytes_len) {
+	
+	size_t block_size = 16;
+	size_t padded_length = plain_bytes_len % 16 > 0 ? plain_bytes_len + (16 - (plain_bytes_len % 16)) : plain_bytes_len;
+	
+	PKCS7_Padding *padded   = addPadding(plain_bytes, plain_bytes_len, padded_length);
+    unsigned char *padded_message    = padded->dataWithPadding;
+    plain_bytes_len = padded->dataLengthWithPadding;
+
+	if(*cipher_bytes_len != plain_bytes_len) {
+		*cipher_bytes_len = plain_bytes_len;
+		return 2;
+	}
+
+	size_t total_blocks = plain_bytes_len / 16;
+	unsigned char encrypted_bytes[plain_bytes_len];
+
+	for(size_t i = 0; i < total_blocks; i++) {
+		unsigned char current_block[16] = {0};
+		unsigned char next_block[16] = {0};
+		unsigned char encrypted_block[16] = {0};
+		unsigned char decrypted_block[16] = {0};
+
+		for (size_t j = 0; j < 16; j++)
+			current_block[j] = i == 0 ? padded_message[j] ^ iv[j] : padded_message[j + (i * 16)] ^ cipher_bytes[j + ((i - 1) * 16)];
+
+		ecb_encrypt(current_block, key, (unsigned char *) &encrypted_block, block_size, &block_size);
+		ecb_decrypt(encrypted_block, key, (unsigned char *) &decrypted_block, block_size, &block_size);
+		memcpy(cipher_bytes + i * 16, encrypted_block, 16);
+	}
+	return 1;
+}
+
+int cbc_decrypt(unsigned char *cipher_bytes, unsigned char *key, unsigned char *iv, unsigned char *plain_bytes, 
+				size_t cipher_bytes_len, size_t *plain_bytes_len) {
+
+	if(cipher_bytes_len % 16 != 0) {
+		return 2;
+	}
+
+	if(cipher_bytes_len != *plain_bytes_len) {
+		*plain_bytes_len = cipher_bytes_len;
+		return 3;
+	}
+
+	int total_blocks = cipher_bytes_len / 16;
+	size_t block_size = 16;
+
+	for(int i = total_blocks - 1; i >= 0; i--) {
+		unsigned char xored_block[16] = {0};
+		unsigned char next_block[16] = {0};
+		unsigned char encrypted_block[16] = {0};
+		unsigned char plain_block[16] = {0};
+
+		memcpy(encrypted_block, cipher_bytes + i * 16, 16);
+		memcpy(next_block, cipher_bytes + (i - 1) * 16, 16);
+		ecb_decrypt(encrypted_block, key, (unsigned char *) &xored_block, block_size, &block_size);
+
+		for (int j = 0; j < 16; j++)
+			plain_block[j] = i == 0 ? xored_block[j] ^ iv[j] : xored_block[j] ^ next_block[j];
+
+		memcpy(plain_bytes + i * 16, plain_block, 16);
+	}
+
+	return 1;
 }

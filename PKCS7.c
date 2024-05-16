@@ -20,6 +20,9 @@ PKCS7_Padding* addPadding(const void* const data, const uint64_t dataLength, con
     }
 
     uint8_t paddingBytesAmount           = BLOCK_SIZE - (dataLength % BLOCK_SIZE);  /* number of bytes to be appended */
+    if(dataLength % BLOCK_SIZE == 0) 
+        paddingBytesAmount = 0;
+    
     paddingResult->valueOfByteForPadding = paddingBytesAmount;                      /* according to the PKCS7 */
     paddingResult->dataLengthWithPadding = dataLength + paddingBytesAmount;         /* size of the final result */
     
