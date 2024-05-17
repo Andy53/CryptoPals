@@ -211,20 +211,23 @@ int ecb_encrypt(unsigned char *plain_bytes, unsigned char *key, unsigned char *c
 		return 1;
 	}
 
+	if(cipher_bytes == NULL)
+		return 2;
+
     if(!(ctx = EVP_CIPHER_CTX_new()))
-        return 2;
+        return 3;
 
 	EVP_CIPHER_CTX_set_padding(ctx, 0);
 
     if(1 != EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), NULL, key, NULL))
-        return 3;
+        return 4;
 
     if(1 != EVP_EncryptUpdate(ctx, cipher_bytes, &len, padded_message, plain_bytes_len))
-        return 4;
+        return 5;
     *cipher_bytes_len = len;
 
     if(1 != EVP_EncryptFinal_ex(ctx, cipher_bytes + *cipher_bytes_len, &len))
-        return 5;
+        return 6;
 
     EVP_CIPHER_CTX_free(ctx);
 	return 0;
@@ -267,6 +270,9 @@ int cbc_encrypt(unsigned char *plain_bytes, unsigned char *key, unsigned char *i
 		*cipher_bytes_len = plain_bytes_len;
 		return 2;
 	}
+
+	if(cipher_bytes == NULL)
+		return 3;
 
 	int total_blocks = plain_bytes_len / 16;
 	unsigned char encrypted_bytes[plain_bytes_len];

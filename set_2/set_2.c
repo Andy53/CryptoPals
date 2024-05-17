@@ -129,12 +129,107 @@ int challenge_11() {
 }
 
 int challenge_12() {
+    int block_size          = 0;
+    unsigned char key[16]   = {0};
+    unsigned char *b64_text = "Um9sbGluJyBpbiBteSA1LjAKV2l0aCBteSByYWctdG9wIGRvd24gc28gbXkg"
+                              "aGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBq"
+                              "dXN0IHRvIHNheSBoaQpEaWQgeW91IHN0b3A/IE5vLCBJIGp1c3QgZHJvdmUg"
+                              "YnkK";
+    
+    int plain_bytes_len = 0;
+    b64_decode(b64_text, NULL, &plain_bytes_len);
+    unsigned char plain_bytes[plain_bytes_len];
+    unsigned char decrypted_bytes[plain_bytes_len];
+    b64_decode(b64_text, plain_bytes, &plain_bytes_len);
+
+    for(int i = 0; i < plain_bytes_len; i++)
+        decrypted_bytes[i] = 0;
+
+    int cipher_bytes_len = 0;
+    ecb_encrypt(plain_bytes, key, NULL, plain_bytes_len, &cipher_bytes_len);
+    unsigned char cipher_bytes[cipher_bytes_len];
+    ecb_encrypt(plain_bytes, key, cipher_bytes, plain_bytes_len, &cipher_bytes_len);
+
+    srand ( time(NULL) );
+    for(int i = 0; i < 16; i++)
+        key[i] = rand();
+
+    // Find block size of encryption algorithm.
+    int buffer_counter = 0;
+    while(block_size == 0) {
+        int buffer_len = plain_bytes_len + ++buffer_counter;
+        int cipher_len = 0;
+        unsigned char buffer[buffer_len];
+
+        for(int i = 0; i < buffer_counter; i++) 
+            buffer[i] == 'A';
+
+        ecb_encrypt(buffer, key, NULL, buffer_len, &cipher_len);
+        if(buffer_len == cipher_len) {
+            if(buffer_len % 64 == 0) 
+                block_size = 64;
+            else if(buffer_len % 32 == 0) 
+                block_size = 32;
+            else if(buffer_len % 16 == 0) 
+                block_size = 16;
+        }
+    }
+
+    // Identify plaintext byte by byte.
+    for(int i = 0; i < cipher_bytes_len; i++) {
+        int mod_plain_bytes_len = plain_bytes_len + (16 - (i % 16));
+        int padding = mod_plain_bytes_len - plain_bytes_len;
+        unsigned char mod_plain_bytes[mod_plain_bytes_len];
+        unsigned char new_plain_bytes[mod_plain_bytes_len];
+
+        for(int j = 0; j < 255; j++) {
+            for(int k = 0; k < mod_plain_bytes_len; k++) {
+                if(k < padding) {
+                    mod_plain_bytes[k] = 'A';
+                    new_plain_bytes[k] = 'A';
+                } else if(k >= padding && k < (padding + i)) {
+                    mod_plain_bytes[k] = plain_bytes[k - padding];
+                    new_plain_bytes[k] = plain_bytes[k - padding];
+                } else if(k == (padding + i)) {
+                    mod_plain_bytes[k] = plain_bytes[k - padding];
+                    new_plain_bytes[k] = j;
+                } else {
+                    mod_plain_bytes[k] = plain_bytes[k - padding];
+                    new_plain_bytes[k] = plain_bytes[k - padding];
+                } 
+            }
+
+            int mod_cipher_bytes_len = 0;
+            ecb_encrypt(mod_plain_bytes, key, NULL, mod_plain_bytes_len, &mod_cipher_bytes_len);
+            unsigned char mod_cipher_bytes[mod_cipher_bytes_len];
+            unsigned char new_cipher_bytes[mod_cipher_bytes_len];
+            ecb_encrypt(mod_plain_bytes, key, mod_cipher_bytes, mod_plain_bytes_len, &mod_cipher_bytes_len);
+            ecb_encrypt(new_plain_bytes, key, new_cipher_bytes, mod_plain_bytes_len, &mod_cipher_bytes_len);
+
+            bool match = true;
+            for(int k = 0; k < mod_cipher_bytes_len; k++) {
+                if(mod_cipher_bytes[k] != new_cipher_bytes[k])
+                    match = false;
+            }
+
+            if(match == true) {
+                decrypted_bytes[i] = j;
+            }
+        }
+    }
+    
+
+    printf("Challenge 12 = ");
+    for(int i = 0; i < plain_bytes_len; i++)
+        printf("%c", decrypted_bytes[i]);
+    printf("\n");
     return 1;
 }
 
 int main() {
-    challenge_9();
-    challenge_10();
-    challenge_11();
+    //challenge_9();
+    //challenge_10();
+    //challenge_11();
+    challenge_12();
     return 1;
 }
