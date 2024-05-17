@@ -15,7 +15,7 @@ int challenge_1() {
     unsigned char bytes[48] = {0};
     int bytes_len = 0;
 
-    hex_to_bytes(hex, bytes, &bytes_len);
+    hex_encode(hex, bytes, &bytes_len);
 
     unsigned char *base64 = b64_encode(bytes, bytes_len);
     printf("challenge 1 out  = %s\n", base64);
@@ -31,8 +31,8 @@ int challenge_2() {
     int bytes_1_len = 0;
     int bytes_2_len = 0;
 
-    hex_to_bytes(hex_1, bytes_1, &bytes_1_len);
-    hex_to_bytes(hex_2, bytes_2, &bytes_2_len);
+    hex_encode(hex_1, bytes_1, &bytes_1_len);
+    hex_encode(hex_2, bytes_2, &bytes_2_len);
     xor(bytes_1, bytes_2, bytes_3, bytes_1_len, bytes_2_len);
     
     printf("challenge 2 out  = ");
@@ -52,7 +52,7 @@ int challenge_3() {
 
     int score      = 0;
     unsigned char key = '!';
-    hex_to_bytes(hex, bytes, &bytes_len);
+    hex_encode(hex, bytes, &bytes_len);
 
     for(int i = 0; i < strlen((const char *)letters); i++){
         unsigned char out_bytes[bytes_len];
@@ -76,14 +76,14 @@ int challenge_3() {
         printf("%c", plain[i]);
     }
     printf("\n");
-    return 0;
+    return 1;
 }
 
 int challenge_4() {
     FILE * fp;
     char * line = NULL;
-    int len = 0;
-    sint read;
+    size_t len = 0;
+    ssize_t read;
 
     unsigned char letters[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890 :\n";
     unsigned char plain[30];
@@ -94,13 +94,13 @@ int challenge_4() {
 
     fp = fopen("challenge_4_inputs.txt", "r");
     if (fp == NULL)
-        return 1;
+        return 2;
 
     while ((read = getline(&line, &len, fp)) != -1) {
         line[strcspn(line, "\n")] = 0;
         
 
-        hex_to_bytes((unsigned char *)line, bytes, &bytes_len);
+        hex_encode((unsigned char *)line, bytes, &bytes_len);
         for(int i = 0; i < strlen((const char *)letters); i++){
             unsigned char out_bytes[bytes_len];
             int char_score = 0;
@@ -130,7 +130,7 @@ int challenge_4() {
     for(int i = 0; i < bytes_len; i++){
         printf("%c", plain[i]);
     }
-    return 0;
+    return 1;
 }
 
 int challenge_5() {
@@ -163,12 +163,12 @@ int challenge_6() {
         if(fseek(fp, 0L, SEEK_END) == 0) {
             long bufsize = ftell(fp);
             if(bufsize == -1)
-                return 1;
+                return 2;
 
             cipher_text = malloc(sizeof(char) * (bufsize + 1));
 
             if(fseek(fp, 0L, SEEK_SET) != 0)
-                return 2;
+                return 3;
 
             cipher_text_len = fread(cipher_text, sizeof(char), bufsize, fp);
             if( ferror( fp ) != 0 ) {
@@ -180,7 +180,7 @@ int challenge_6() {
         fclose(fp);
     }
     else 
-        return 3;
+        return 4;
 
     b64_decode(cipher_text, cipher_bytes, &cipher_bytes_len);
     for(int i = 2; i < 40; i++) {
@@ -261,7 +261,7 @@ int challenge_6() {
     printf("Challenge 6 Key  = %s\n", key);
     xor(cipher_bytes, key, plain_bytes, 2875, keysize);
     free(cipher_text);
-    return 0;
+    return 1;
 }
 
 int challenge_7() {
@@ -275,12 +275,12 @@ int challenge_7() {
         if(fseek(fp, 0L, SEEK_END) == 0) {
             long bufsize = ftell(fp);
             if(bufsize == -1)
-                return 1;
+                return 2;
 
             cipher_text = malloc(sizeof(char) * (bufsize + 1));
 
             if(fseek(fp, 0L, SEEK_SET) != 0)
-                return 2;
+                return 3;
 
             cipher_text_len = fread(cipher_text, sizeof(char), bufsize, fp);
             if( ferror( fp ) != 0 ) {
@@ -292,7 +292,7 @@ int challenge_7() {
         fclose(fp);
     }
     else 
-        return 3;
+        return 4;
     
     b64_decode(cipher_text, NULL, &cipher_bytes_len);
     unsigned char cipher_bytes[cipher_bytes_len];
@@ -304,18 +304,18 @@ int challenge_7() {
     unsigned char plain[3840];
 
     if(!(ctx = EVP_CIPHER_CTX_new()))
-        return 4;
-
-    if(1 != EVP_DecryptInit_ex(ctx, EVP_aes_128_ecb(), NULL, key, NULL))
         return 5;
 
-    if(1 != EVP_DecryptUpdate(ctx, plain, &len, cipher_bytes, cipher_bytes_len))
+    if(1 != EVP_DecryptInit_ex(ctx, EVP_aes_128_ecb(), NULL, key, NULL))
         return 6;
+
+    if(1 != EVP_DecryptUpdate(ctx, plain, &len, cipher_bytes, cipher_bytes_len))
+        return 7;
     
     int plain_len = len;
 
     if(1 != EVP_DecryptFinal_ex(ctx, plain + plain_len, &len))
-        return 7;
+        return 8;
 
     for(int i = 0; i < plain_len; i++){
         printf("%c", plain[i]);
@@ -324,14 +324,14 @@ int challenge_7() {
 
     EVP_CIPHER_CTX_free(ctx);
 
-    return 0;
+    return 1;
 }
 
 int challenge_8() {
     FILE * fp;
     char * line = NULL;
-    int len = 0;
-    sint read;
+    size_t len = 0;
+    ssize_t read;
 
     unsigned char plain[30];
     unsigned char bytes[160];
@@ -342,7 +342,7 @@ int challenge_8() {
 
     fp = fopen("challenge_8_inputs.txt", "r");
     if (fp == NULL)
-        return 1;
+        return 2;
 
     while ((read = getline(&line, &len, fp)) != -1) {
         int line_score = 0;
@@ -350,7 +350,7 @@ int challenge_8() {
         unsigned char blocks[10][16];
         line[strcspn(line, "\n")] = 0;
 
-        hex_to_bytes((unsigned char *)line, bytes, &bytes_len);
+        hex_encode((unsigned char *)line, bytes, &bytes_len);
 
         for(int i = 0; i < bytes_len / 16; i++){
             memcpy(&blocks[i][0], bytes + (i * 16), 16);
@@ -376,7 +376,7 @@ int challenge_8() {
         counter++;
     }
     printf("Challenge 8 ECB line = %d\n", line_num);
-    return 0;
+    return 1;
 }
 
 int main() {

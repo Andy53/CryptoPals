@@ -26,7 +26,7 @@ int array_contains(unsigned char *bytes, unsigned char element, int bytes_len) {
     return 0;
 }
 
-int hex_to_bytes(char *hex, char *bytes, int *bytes_len) {
+int hex_encode(char *hex, char *bytes, int *bytes_len) {
     if (hex == NULL || bytes_len == 0)
 		return 1;
 	

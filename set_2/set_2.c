@@ -128,9 +128,13 @@ int challenge_11() {
     return 1;
 }
 
+int challenge_12() {
+    return 1;
+}
+
 int main() {
-    //challenge_9();
-    //challenge_10();
+    challenge_9();
+    challenge_10();
     challenge_11();
     return 1;
 }
