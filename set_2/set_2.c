@@ -264,7 +264,7 @@ int challenge_13() {
     // String to manipulate: email=foo@bar.com&uid=10&role=user 
 
     int cipher_bytes_len = 0;
-    unsigned char email[29] = {0};
+    unsigned char email[45] = {0};
     unsigned char block[16] = {0};
 
     block[0] = 'a';
@@ -276,12 +276,12 @@ int challenge_13() {
     PKCS7_Padding *padded   = addPadding(block, 5, 16);
     char *padded_message    = padded->dataWithPadding;
 
-    for(int i = 0; i < 29; i++){
-        if(i < 10)
+    for(int i = 0; i < 45; i++){
+        if(i < 26)
             email[i] = 'A';
-        else if(i >= 10 && i < 26)
-            email[i] = padded_message[i - 10];
-        else if(i >= 26)
+        else if(i >= 26 && i < 42)
+            email[i] = padded_message[i - 26];
+        else if(i >= 45)
             email[i] = 'A';
     }
         
@@ -292,19 +292,31 @@ int challenge_13() {
 
     unsigned char mod_cipher_bytes[cipher_bytes_len];
     for(int i = 0; i < cipher_bytes_len; i++){
-        if(i < 16)
+        if(i < 32)
             mod_cipher_bytes[i] = cipher_bytes[i];
-        else if(i >= 16 && i < 32)
-            mod_cipher_bytes[i] = cipher_bytes[i + 16];
         else if(i >= 32 && i < 48)
+            mod_cipher_bytes[i] = cipher_bytes[i - 16];
+        else if(i >= 48 && i < 64)
             mod_cipher_bytes[i] = cipher_bytes[i];
-        else if(i >= 48)
+        else if(i >= 64)
             mod_cipher_bytes[i] = cipher_bytes[i - 32];
     }
 
     int plain_bytes_len = 0;
     unsigned char plain_bytes[cipher_bytes_len];
     ecb_decrypt(mod_cipher_bytes, key, plain_bytes, cipher_bytes_len, &plain_bytes_len);
+
+    printf("email       = ");
+    for(int i = 0; i < plain_bytes_len; i++)
+        printf("%c", plain_bytes[i]);
+        //printf("\\x%02x", plain_bytes[i]);
+    printf("\n");
+
+    printf("plain_bytes = ");
+    for(int i = 0; i < 29; i++)
+        printf("%c", email[i]);
+        //printf("\\x%02x", plain_bytes[i]);
+    printf("\n");
 
     PKCS7_unPadding *unPadded   = removePadding(plain_bytes, cipher_bytes_len);
     char *unPadded_message    = unPadded->dataWithoutPadding;
@@ -434,12 +446,12 @@ int challenge_15() {
 }
 
 int main() {
-    //challenge_9();
-    //challenge_10();
-    //challenge_11();
-    //challenge_12();
-    //challenge_13();
-    //challenge_14();
+    challenge_9();
+    challenge_10();
+    challenge_11();
+    challenge_12();
+    challenge_13();
+    challenge_14();
     challenge_15();
     return 1;
 }
