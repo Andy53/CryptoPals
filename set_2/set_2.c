@@ -226,10 +226,220 @@ int challenge_12() {
     return 1;
 }
 
+int challenge_13_oracle(unsigned char *input, unsigned char *cipher_bytes, int *cipher_bytes_len, unsigned char *key) {
+    int valid_len = strlen(input);
+    for(int i = 0; i < strlen(input); i++) {
+        if(input[i] == '&' || input[i] == '=')
+            valid_len = i - 1;
+    }
+
+    char email[valid_len];
+    for(int i = 0; i < valid_len; i++) 
+        email[i] = input[i]; 
+
+    char user_string[24 + valid_len];
+    memcpy(user_string, "email=", 6);
+    memcpy(user_string + 6, email, strlen(email));
+    memcpy(user_string + 5 + strlen(email), "&uid=10&role=user\0", 18);
+    
+    int length = 0;
+    ecb_encrypt(user_string, key, NULL, strlen(user_string), &length);
+    
+    if(*cipher_bytes_len != length) {
+        *cipher_bytes_len = length;
+        return 2;
+    }
+
+    ecb_encrypt(user_string, key, cipher_bytes, strlen(user_string), cipher_bytes_len);
+
+    return 1;
+}
+
+int challenge_13() {
+    unsigned char key[16] = {0};
+    srand ( time(NULL) );
+    for(int i = 0; i < 16; i++)
+        key[i] = rand();
+
+    // String to manipulate: email=foo@bar.com&uid=10&role=user 
+
+    int cipher_bytes_len = 0;
+    unsigned char email[29] = {0};
+    unsigned char block[16] = {0};
+
+    block[0] = 'a';
+    block[1] = 'd';
+    block[2] = 'm';
+    block[3] = 'i';
+    block[4] = 'n';
+
+    PKCS7_Padding *padded   = addPadding(block, 5, 16);
+    char *padded_message    = padded->dataWithPadding;
+
+    for(int i = 0; i < 29; i++){
+        if(i < 10)
+            email[i] = 'A';
+        else if(i >= 10 && i < 26)
+            email[i] = padded_message[i - 10];
+        else if(i >= 26)
+            email[i] = 'A';
+    }
+        
+
+    challenge_13_oracle(email, NULL, &cipher_bytes_len, key);
+    unsigned char cipher_bytes[cipher_bytes_len];
+    challenge_13_oracle(email, cipher_bytes, &cipher_bytes_len, key);
+
+    unsigned char mod_cipher_bytes[cipher_bytes_len];
+    for(int i = 0; i < cipher_bytes_len; i++){
+        if(i < 16)
+            mod_cipher_bytes[i] = cipher_bytes[i];
+        else if(i >= 16 && i < 32)
+            mod_cipher_bytes[i] = cipher_bytes[i + 16];
+        else if(i >= 32 && i < 48)
+            mod_cipher_bytes[i] = cipher_bytes[i];
+        else if(i >= 48)
+            mod_cipher_bytes[i] = cipher_bytes[i - 32];
+    }
+
+    int plain_bytes_len = 0;
+    unsigned char plain_bytes[cipher_bytes_len];
+    ecb_decrypt(mod_cipher_bytes, key, plain_bytes, cipher_bytes_len, &plain_bytes_len);
+
+    PKCS7_unPadding *unPadded   = removePadding(plain_bytes, cipher_bytes_len);
+    char *unPadded_message    = unPadded->dataWithoutPadding;
+
+    printf("Challenge_13 = ");
+    for(int i = 0; i < unPadded->dataLengthWithoutPadding; i++)
+        printf("%c", unPadded_message[i]);
+    printf("\n");
+    
+    return 1;
+}
+
+int challenge_14() {
+    unsigned char key[16] = {0};
+    srand ( time(NULL) );
+    for(int i = 0; i < 16; i++)
+        key[i] = rand();
+
+    int random_bytes_len = rand() % 16 + 1;
+    unsigned char randon_bytes[random_bytes_len];
+    for(int i = 0; i < random_bytes_len; i++)
+        randon_bytes[i] = rand();
+
+    unsigned char *target_bytes = "target bytes successfully decrypted!";
+    unsigned char plain_bytes[36] = {0};
+    int cipher_bytes_len = 0;
+    int bytes_to_append  = 0;
+
+    // Find size of appended bytes.
+    for(int i = 0; i < 16; i++) {
+        int bytes_len = i + 32 + random_bytes_len + 36;
+        unsigned char bytes[bytes_len];
+        for(int j = 0; j < bytes_len; j++) {
+            if(j < random_bytes_len)
+                bytes[j] = randon_bytes[j];
+            else if(j < i + 32 + random_bytes_len)
+                bytes[j] = 'A';
+            else
+                bytes[j] = target_bytes[j - (i + random_bytes_len + 32)];
+        }
+
+        ecb_encrypt(bytes, key, NULL, bytes_len, &cipher_bytes_len);
+        unsigned char cipher_bytes[cipher_bytes_len];
+        ecb_encrypt(bytes, key, cipher_bytes, bytes_len, &cipher_bytes_len);
+
+        int counter = 0;
+        for(int j = 0; j < cipher_bytes_len; j += 16) {
+            bool match = true;
+            for(int k = 0; k < 16; k++) {
+                if(cipher_bytes[k + j] != cipher_bytes[k + j + 16] && match == true)
+                    match = false;
+            }
+            if(match == true)
+                counter++;
+        }
+        if(counter > 0) {
+            bytes_to_append = i;
+            i = 16;
+        }
+    }
+    unsigned char decrypted_bytes[strlen(target_bytes)];
+    
+    // Identify plaintext byte by byte.
+    for(int i = 0; i < cipher_bytes_len; i++) {
+        int mod_plain_bytes_len = bytes_to_append + 16 + strlen(target_bytes) + (16 - (i % 16));
+        int padding = mod_plain_bytes_len - strlen(target_bytes);
+        unsigned char mod_plain_bytes[mod_plain_bytes_len];
+        unsigned char new_plain_bytes[mod_plain_bytes_len];
+
+        for(int j = 0; j < 255; j++) {
+            for(int k = 0; k < mod_plain_bytes_len; k++) {
+                if(k < padding) {
+                    mod_plain_bytes[k] = 'A';
+                    new_plain_bytes[k] = 'A';
+                } else if(k >= padding && k < (padding + i)) {
+                    mod_plain_bytes[k] = target_bytes[k - padding];
+                    new_plain_bytes[k] = target_bytes[k - padding];
+                } else if(k == (padding + i)) {
+                    mod_plain_bytes[k] = target_bytes[k - padding];
+                    new_plain_bytes[k] = j;
+                } else {
+                    mod_plain_bytes[k] = target_bytes[k - padding];
+                    new_plain_bytes[k] = target_bytes[k - padding];
+                } 
+            }
+
+            int mod_cipher_bytes_len = 0;
+            ecb_encrypt(mod_plain_bytes, key, NULL, mod_plain_bytes_len, &mod_cipher_bytes_len);
+            unsigned char mod_cipher_bytes[mod_cipher_bytes_len];
+            unsigned char new_cipher_bytes[mod_cipher_bytes_len];
+            ecb_encrypt(mod_plain_bytes, key, mod_cipher_bytes, mod_plain_bytes_len, &mod_cipher_bytes_len);
+            ecb_encrypt(new_plain_bytes, key, new_cipher_bytes, mod_plain_bytes_len, &mod_cipher_bytes_len);
+
+            bool match = true;
+            for(int k = 0; k < mod_cipher_bytes_len; k++) {
+                if(mod_cipher_bytes[k] != new_cipher_bytes[k])
+                    match = false;
+            }
+
+            if(match == true) {
+                decrypted_bytes[i] = j;
+            }
+        }
+    }
+    
+
+    printf("Challenge 14 = ");
+    for(int i = 0; i < strlen(target_bytes); i++)
+        printf("%c", decrypted_bytes[i]);
+    printf("\n");
+    return 1;
+}
+
+int challenge_15() {
+    unsigned char *bytes_1 = "ICE ICE BABY\x04\x04\x04\x04";
+    unsigned char *bytes_2 = "ICE ICE BABY\x05\x05\x05\x05";
+    unsigned char *bytes_3 = "ICE ICE BABY\x01\x02\x03\x04";
+
+    printf("Challenge 15:\n");
+    printf("    bytes_1 padding = "); 
+    validatePadding(bytes_1, 16) ? printf("true\n") : printf("false\n");
+    printf("    bytes_2 padding = "); 
+    validatePadding(bytes_2, 16) ? printf("true\n") : printf("false\n");
+    printf("    bytes_3 padding = "); 
+    validatePadding(bytes_3, 16) ? printf("true\n") : printf("false\n");
+    return 1;
+}
+
 int main() {
     //challenge_9();
     //challenge_10();
     //challenge_11();
-    challenge_12();
+    //challenge_12();
+    //challenge_13();
+    //challenge_14();
+    challenge_15();
     return 1;
 }

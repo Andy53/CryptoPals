@@ -45,6 +45,12 @@ PKCS7_Padding* addPadding(const void* const data, const uint64_t dataLength, con
 
 PKCS7_unPadding* removePadding(const void* const data, const uint64_t dataLength)
 {
+    if(!validatePadding(data, dataLength))
+    {
+        perror("Padding failed validation check.");  /* if padding validation failed */
+        exit(-1);
+    }
+
     PKCS7_unPadding* unpaddingResult = (PKCS7_unPadding*) malloc(sizeof(PKCS7_unPadding));
     if (NULL == unpaddingResult)
     {
@@ -79,4 +85,20 @@ void freeUnPaddingResult(PKCS7_unPadding* unPuddingResult)
 {
     free(unPuddingResult->dataWithoutPadding);
     free(unPuddingResult);
+}
+
+int validatePadding(const void* const data, const uint64_t dataLength) {
+    if(dataLength % 16 != 0)
+        return 2;
+
+    uint8_t dataWithPadding[dataLength];
+    memcpy(dataWithPadding, data, dataLength);  /* copying the original data for further adding padding */
+
+    for (int i = dataLength - 1; i >= dataLength - dataWithPadding[dataLength - 1]; i--)
+    {
+        if(dataWithPadding[i] != dataWithPadding[dataLength - 1])
+            return 0;
+    }
+
+    return 1;
 }

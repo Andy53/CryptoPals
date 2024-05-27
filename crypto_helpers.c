@@ -238,22 +238,29 @@ int ecb_decrypt(unsigned char *cipher_bytes, unsigned char *key, unsigned char *
     int len = 0;
 
     if(!(ctx = EVP_CIPHER_CTX_new()))
-        return 1;
+        return 2;
 
 	EVP_CIPHER_CTX_set_padding(ctx, 0);
 
     if(1 != EVP_DecryptInit_ex(ctx, EVP_aes_128_ecb(), NULL, key, NULL))
-        return 2;
-
-    if(1 != EVP_DecryptUpdate(ctx, plain_bytes, &len, cipher_bytes, cipher_bytes_len))
         return 3;
+
+	if(plain_bytes == NULL) {
+		unsigned char place_holder[1];
+		EVP_DecryptUpdate(ctx, place_holder, &len, cipher_bytes, cipher_bytes_len);
+		*plain_bytes_len = len;
+		return 4;
+	}
+    
+	if(1 != EVP_DecryptUpdate(ctx, plain_bytes, &len, cipher_bytes, cipher_bytes_len))
+        return 5;
     *plain_bytes_len = len;
 
     if(1 != EVP_DecryptFinal_ex(ctx, plain_bytes + *plain_bytes_len, &len))
-        return 4;
+        return 6;
 
     EVP_CIPHER_CTX_free(ctx);
-	return 0;
+	return 1;
 }
 
 int cbc_encrypt(unsigned char *plain_bytes, unsigned char *key, unsigned char *iv, unsigned char *cipher_bytes, 

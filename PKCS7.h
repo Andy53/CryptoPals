@@ -59,4 +59,9 @@ void freePaddingResult(PKCS7_Padding* puddingResult);
 */
 void freeUnPaddingResult(PKCS7_unPadding* unPuddingResult);
 
+/*
+    Validate the padding on a input is PKCS7 compliant.
+*/
+int validatePadding(const void* const data, const uint64_t dataLength);
+
 #endif // PKCS7_H
