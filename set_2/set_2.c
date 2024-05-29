@@ -445,6 +445,59 @@ int challenge_15() {
     return 1;
 }
 
+int challenge_16() {
+    unsigned char iv[16] = {0};
+    unsigned char key[16] = {0};
+    srand ( time(NULL) );
+    for(int i = 0; i < 16; i++)
+        key[i] = rand();
+
+    unsigned char *prepend = "comment1=cooking%20MCs;userdata="; // length 32
+    unsigned char *u_data  = ":admin<true";                        // length 10
+    unsigned char *append  = ";comment2= like a pound of bacon";  // length 32
+
+    int plain_text_len = strlen(prepend) + strlen(u_data) + strlen(append);
+    unsigned char plain_text[plain_text_len];
+
+    for(int i = 0; i < plain_text_len; i++) {
+        if(i < strlen(prepend))
+            plain_text[i] = prepend[i];
+        else if(i >= strlen(prepend) && i < strlen(prepend) + strlen(u_data))
+            plain_text[i] = u_data[i - strlen(prepend)];
+        else {
+            plain_text[i] = append[i - (strlen(prepend) + strlen(u_data))];
+        }
+    }
+
+    int cipher_text_len = 0;
+    cbc_encrypt(plain_text, key, iv, NULL, plain_text_len, &cipher_text_len);
+    unsigned char cipher_text[cipher_text_len];
+    cbc_encrypt(plain_text, key, iv, cipher_text, plain_text_len, &cipher_text_len);
+
+    cipher_text[16] = cipher_text[16] ^ 0x01;
+    cipher_text[22] = cipher_text[22] ^ 0x01;
+
+    int plain_bytes_len = 0;
+    cbc_decrypt(cipher_text, key, iv, NULL, cipher_text_len, &plain_bytes_len);
+    unsigned char plain_bytes[plain_bytes_len];
+    cbc_decrypt(cipher_text, key, iv, plain_bytes, cipher_text_len, &plain_bytes_len);
+
+    
+    printf("Challenge 16 = \nplain_text = ");
+    for(int i = 0; i < plain_text_len; i++) {
+        printf("%c", plain_text[i]);
+    }
+    printf("\nafter bit flip = ");
+    
+    for(int i = 0; i < plain_bytes_len; i++) {
+        printf("%c", plain_bytes[i]);
+    }
+    printf("\n");
+    
+    
+    return 1;
+}
+
 int main() {
     challenge_9();
     challenge_10();
@@ -453,5 +506,6 @@ int main() {
     challenge_13();
     challenge_14();
     challenge_15();
+    challenge_16();
     return 1;
 }
